@@ -1,0 +1,125 @@
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+import joblib
+
+# 1. Veri Yükleme
+# Verilerinizi buraya yükleyin
+data_file = "etiketli_veriler.xlsx"
+data = pd.read_excel(data_file)
+
+# 2. Veri Hazırlığı
+# Sütun isimlerini düzenleme (isteğe bağlı)
+data.columns = [
+    "Zaman Damgası", "Ders Materyalleri", "Sınıf Temizliği", "Tuvalet Hijyeni", "Çöp Kutuları",
+    "Ortak Alan Temizliği", "Lavabo Sabun Yeterliliği", "Temizlik Personeli", "Havalandırma",
+    "Spor Tesisleri", "Yemek Kalitesi", "Yemek Porsiyonu", "Teknik Donanım", "Kulüp Alanları",
+    "İnternet", "Dinlenme Alanları", "Barınma", "Fiziksel Güvenlik", "Arkadaşlık İlişkileri",
+    "Öğrenci İşleri", "İdare İletişimi", "Etkinlik İzin Süreçleri", "İdare İletişim Kanalları",
+    "Öğretim Üyelerine Ulaşım", "Akademik Danışmanlık", "Etkinlik Bütçesi", "Kültürel Etkinlikler",
+    "Dinlenme Alan Bakımı", "Genel Memnuniyet"
+]
+
+# Hedef değişken (Genel Memnuniyet) ve özellikler (diğer sütunlar)
+# Etiketli ve etiketsiz verileri ayırma
+labeled_data = data[data["Genel Memnuniyet"].notna()]
+unlabeled_data = data[data["Genel Memnuniyet"].isna()]
+
+# Özellikler ve hedef değişken
+X_labeled = labeled_data.drop(columns=["Zaman Damgası", "Genel Memnuniyet"])
+y_labeled = labeled_data["Genel Memnuniyet"]
+
+# Eksik verileri doldurma (gerekirse)
+imputer = SimpleImputer(strategy="mean")
+X_labeled = imputer.fit_transform(X_labeled)
+
+# 3. Model Eğitimi
+# Random Forest tabanlı bir model
+model = RandomForestRegressor(random_state=42)
+model.fit(X_labeled, y_labeled)
+
+# Modeli kaydetme
+joblib.dump(model, "school_satisfaction_model.pkl")
+print("Model başarıyla kaydedildi: school_satisfaction_model.pkl")
+
+# Modelin eğitildiği özellikleri kaydetme
+model_features = labeled_data.drop(columns=["Zaman Damgası", "Genel Memnuniyet"]).columns
+joblib.dump(model_features, "model_features.pkl")
+print("Modelin özellikleri kaydedildi: model_features.pkl")
+
+# Eğer etiketsiz veri varsa tahmin yapma
+if not unlabeled_data.empty:
+    X_unlabeled = unlabeled_data.drop(columns=["Zaman Damgası", "Genel Memnuniyet"])
+    X_unlabeled = imputer.transform(X_unlabeled)
+
+    # Tahmin
+    predictions = model.predict(X_unlabeled)
+
+    # Tahminleri etiketsiz verilere ekleme
+    unlabeled_data["Genel Memnuniyet"] = predictions
+
+    # Sonuçları birleştirme
+    final_data = pd.concat([labeled_data, unlabeled_data])
+
+    # Sonuçları kaydetme
+    final_data.to_csv("predicted_data.csv", index=False)
+    print("Tahmin edilen veriler kaydedildi: predicted_data.csv")
+
+    # Tahmin edilen etiketsiz verileri gösterme
+    print("Tahmin edilen etiketsiz veriler:")
+    print(unlabeled_data[["Zaman Damgası", "Genel Memnuniyet"]])
+else:
+    print("Etiketsiz veri bulunamadı. Sadece etiketli veriler işlendi.")
+
+# 4. Kullanıcıdan Girdi Alma ve Tahmin Yapma
+# Modeli ve özellikleri yükleme
+model = joblib.load("school_satisfaction_model.pkl")
+model_features = joblib.load("model_features.pkl")
+print("Model ve özellikler başarıyla yüklendi!")
+
+# Kullanıcıdan girdi alma
+print("Lütfen aşağıdaki sorulara 1-5 arasında bir değer girin:")
+user_input = {
+    "Ders Materyalleri": int(input("Ders materyalleri yeterince anlaşılır mı? (1-5): ")),
+    "Sınıf Temizliği": int(input("Sınıflar yeterince temiz mi? (1-5): ")),
+    "Tuvalet Hijyeni": int(input("Tuvaletler hijyenik mi? (1-5): ")),
+    "Çöp Kutuları": int(input("Koridorlarda çöp kutuları yeterli mi? (1-5): ")),
+    "Ortak Alan Temizliği": int(input("Ortak kullanım alanları düzenli olarak temizleniyor mu? (1-5): ")),
+    "Lavabo Sabun Yeterliliği": int(input("Lavabolarda sabun veya kağıt havlu yeterli mi? (1-5): ")),
+    "Temizlik Personeli": int(input("Temizlik personeli yeterli mi? (1-5): ")),
+    "Havalandırma": int(input("Havalandırma ve ortam kokusu uygun mu? (1-5): ")),
+    "Spor Tesisleri": int(input("Spor salonu ve tesisler tüm öğrencilere uygun mu? (1-5): ")),
+    "Yemek Kalitesi": int(input("Yemekhanede sunulan yemeklerin kalitesi iyi mi? (1-5): ")),
+    "Yemek Porsiyonu": int(input("Yemekhanede sunulan yemeklerin porsiyonu yeterli mi? (1-5): ")),
+    "Teknik Donanım": int(input("Dersliklerde teknik donanım (projeksiyon, bilgisayar) yeterli mi? (1-5): ")),
+    "Kulüp Alanları": int(input("Öğrenci kulüp faaliyetleri için yeterli alan sağlanıyor mu? (1-5): ")),
+    "İnternet": int(input("Kampüste ücretsiz internet bağlantısı yeterli mi? (1-5): ")),
+    "Dinlenme Alanları": int(input("Dinlenme alanları (banklar, oturma yerleri) yeterli mi? (1-5): ")),
+    "Barınma": int(input("Barınma imkanları (yurtlar, lojmanlar) ihtiyaçları karşılıyor mu? (1-5): ")),
+    "Fiziksel Güvenlik": int(input("Fiziksel güvenlik konusunda kendinizi güvende hissediyor musunuz? (1-5): ")),
+    "Arkadaşlık İlişkileri": int(input("Arkadaşlarınızla ilişkilerinizden memnun musunuz? (1-5): ")),
+    "Öğrenci İşleri": int(input("Öğrenci işleri taleplere hızlı yanıt veriyor mu? (1-5): ")),
+    "İdare İletişimi": int(input("İdare ile iletişim etkili mi? (1-5): ")),
+    "Etkinlik İzin Süreçleri": int(input("Etkinlik ve kulüp faaliyetleri için izin süreçleri kolay mı? (1-5): ")),
+    "İdare İletişim Kanalları": int(input("İdare ile iletişim kanalları (e-posta, telefon) yeterli mi? (1-5): ")),
+    "Öğretim Üyelerine Ulaşım": int(input("Çalışma saatleri dışında öğretim üyelerine ulaşmak kolay mı? (1-5): ")),
+    "Akademik Danışmanlık": int(input("Akademik danışmanlık hizmetlerinden memnun musunuz? (1-5): ")),
+    "Etkinlik Bütçesi": int(input("Öğrenci etkinlikleri için ayrılan bütçe yeterli mi? (1-5): ")),
+    "Kültürel Etkinlikler": int(input("Kültürel etkinlikler (tiyatro, konser, sergi) düzenleniyor mu? (1-5): ")),
+    "Dinlenme Alan Bakımı": int(input("Dinlenme ve sosyalleşme alanları bakımlı mı? (1-5): "))
+}
+
+# Kullanıcı girdilerini DataFrame'e dönüştürme
+user_data = pd.DataFrame([user_input])
+
+# Modelin beklediği özelliklere göre düzenleme
+user_data = user_data[model_features]
+
+# Tahmin yapma
+predicted_satisfaction = model.predict(user_data)
+
+# Tahmini yazdırma
+print(f"Okulunuzdan genel memnuniyet tahmini: {predicted_satisfaction[0]:.2f} (1-10 arası)")
